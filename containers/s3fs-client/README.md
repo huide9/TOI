@@ -45,11 +45,13 @@ $ docker push huide/<tar_kamge>[:<revision>]
 
 ### Configure base-domain
 
-isi s3 settings zone modify --base-domain=<your sc zone name>  /* i.e., vert-son.west.isilon.com */
-Create bucket
+```isi s3 settings zone modify --base-domain=<your sc zone name>  /* i.e., vert-son.west.isilon.com */ ```
+
+### Create bucket
 
 isi s3 buckets create <bucket-name> /ifs/data/<your-bucket-path>
- *if not use htts
+ 
+*if not use https
 
 isi s3 settings global modify --https-only false
 
