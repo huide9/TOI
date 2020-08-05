@@ -12,7 +12,9 @@ docker attach <alpine contianer id>
 ```
 ### Permission Notes
 Run container with follwoing permission to enable fuse mount in container
-``` docker container run -it --cap-add SYS_ADMIN --device /dev/fuse --security-opt apparmor:unconfined <dir>/<image_name> sh ```
+``` 
+docker container run -it --cap-add SYS_ADMIN --device /dev/fuse --security-opt apparmor:unconfined <dir>/<image_name> sh 
+```
 
 
 ## install the necessary packages for building s3fs client
