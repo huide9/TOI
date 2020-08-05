@@ -10,6 +10,11 @@ docker attach <alpine contianer id>
 
 #apk update && apk add git
 ```
+### Permission Notes
+Run container with follwoing permission to enable fuse mount in container
+``` docker container run -it --cap-add SYS_ADMIN --device /dev/fuse --security-opt apparmor:unconfined <dir>/<image_name> sh ```
+
+
 ## install the necessary packages for building s3fs client
 ``` apk --update add --virtual build-dependencies build-base alpine-sdk fuse fuse-dev automake autoconf git libressl-dev curl-dev libxml2-dev ca-certificates```
 
@@ -25,7 +30,9 @@ make install
 ```
 
 # one long command!
-#apk --update add --virtual build-dependencies build-base alpine-sdk fuse fuse-dev automake autoconf git libressl-dev curl-dev libxml2-dev ca-certificates && git clone https://github.com/s3fs-fuse/s3fs-fuse.git && cd s3fs-fuse && git checkout tags/v1.82 && ./autogen.sh && ./configure --prefix=/usr && make && make install 
+``` 
+apk --update add --virtual build-dependencies build-base alpine-sdk fuse fuse-dev automake autoconf git libressl-dev curl-dev libxml2-dev ca-certificates && git clone https://github.com/s3fs-fuse/s3fs-fuse.git && cd s3fs-fuse && git checkout tags/v1.82 && ./autogen.sh && ./configure --prefix=/usr && make && make install 
+```
 
 # generate the iamge and check in to hub.docker.com
 ```
