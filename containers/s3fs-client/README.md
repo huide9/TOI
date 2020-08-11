@@ -26,9 +26,12 @@ make install
 ```
 
 ## * one long command!
+### alpine
 ``` 
 apk --update add --virtual build-dependencies build-base alpine-sdk fuse fuse-dev automake autoconf git libressl-dev curl-dev libxml2-dev ca-certificates && git clone https://github.com/s3fs-fuse/s3fs-fuse.git && cd s3fs-fuse && git checkout tags/v1.82 && ./autogen.sh && ./configure --prefix=/usr && make && make install 
 ```
+### debian
+apt update && apt install -y build-essenssial fuse libfuse-dev automake autoconf git libxml2-dev ca-certificates libcurl4-openssl-dev pkg-config
 
 ## 1.5 generate the iamge and check in to hub.docker.com
 ```
