@@ -1,0 +1,41 @@
+ubu16-k8s-000
+
+
+
+### step 0
+# get the powercli in privillge mode
+sudo pwsh
+
+# ignore ssl cert during login
+Set-PowerCLIConfiguration -InvalidCertificateAction:Ignore
+
+# login to vSphere
+connect-viserver vc01.west.isilon.com
+or
+connect-viserver vcenter01.desktop.isilon.com
+
+### step 1
+# create VM(s)
+#New-VM -Name t1-node7 -Template k8s-4cpu-6g-120g-worknode -Datastore ds-rdu1-vc01-vsan01 -ResourcePool compute-general-rdu1-vc01-01 -Location test-vms -RunAsync 
+or
+#New-VM -Name dke-ubu16-201 -Template ubu16-4-8-120-k8s-ready -Datastore datastore-rdu1-vcenter01-homedir01 -ResourcePool compute-homedir-vcenter01-01 -Location DKE -RunAsync 
+
+### step 2 
+# pull mac
+#Get-VM -Location test-vms | sort-object Name | Get-NetworkAdapter | Select Parent, NetworkName, MacAddress | Export-Csv C:\VM-PowerCLI\test-vms.csv
+or
+Get-VM -Location DKE | sort-object Name | Get-NetworkAdapter | Select Parent, NetworkName, MacAddress | Export-Csv C:\VM-PowerCLI\test-vms.csv
+
+### step 3
+# config mac/ip on infoblox
+curl -k1 -u cert-vm-deploy:1sil0N! -H "Content-Type: application/json" -X POST https://infoblox.west.isilon.com/wapi/v1.7.1/record:host -d '{"ipv4addrs": [{"ipv4addr":"10.137.20.106", "configure_for_dhcp":true, "mac":"00:50:56:95:35:54"}], "name":"t1-node7.west.isilon.com"}'
+
+
+# loop to print it:  3 columns need to be modified: IP, mac, hostname
+for ((i=100;i<200;i++)){ 
+  echo "curl -k1 -u cert-vm-deploy:1sil0N! -H \"Content-Type: application/json\" -X POST https://infoblox.west.isilon.com/wapi/v1.7.1/record:host -d '{\"ipv4addrs\": [{\"ipv4addr\":\"10.137.33.$i\", \"configure_for_dhcp\":true, \"mac\":\"00:50:56:95:e3:74\"}], \"name\":\"t2-n$i.west.isilon.com\"}'";
+}
+
+Start-VM -VM xx200 -Confirm:$false -RunAsync
+Stop-VM -VM dke-ubu16-200 -Confirm:$fasle -RunAsync
+Restart-VM -VM xxx -Confirm:$false -RunAsync
