@@ -1,0 +1,261 @@
+
+###############
+# example: deployment-label
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ct-deploy
+  namespace: ct-group
+  labels: 
+    app: lapp-ct-deploy
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: ct-pod
+  template:
+    metadata:
+      labels:
+        app: lapp-ct-pod
+      namespace: ct-group
+      name: ct-pod
+    spec:
+      containers:
+      - name: ct-container
+        image: docker.west.isilon.com/verticals/nginx/nginx:1.19.0
+        ports:
+        - containerPort: 8080 
+---
+apiVersion: v1
+kind: Service
+metadata: 
+  name: ct-Service
+spec:
+  selector:
+    app: lapp-ct-pod
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  
+###############
+# ReplicaSet example
+apiVersion: apps/v1
+kind: ReplicaSet
+..
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app:  hello-world-pod
+  template:
+    metadata:
+      labels:
+        app: hello-world-pod
+    spec: 
+      containers:
+      ...
+
+or
+
+apiVersion: apps/v1
+kind: ReplicaSet
+...
+spec:
+  replicas: 1
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In 
+        values:
+        - hello-world-pod-me
+  template:
+    metadata:
+      labels:
+        app: hello-world-pod-me 
+    spec:
+      containers:
+      ...
+
+
+####################################################################
+# Updating a Deployment Object
+####################################################################
+kubectl set iamge deployment hello-world hello-world=hello-app:2.0
+
+# recommanded cmd for same purposes, get more info 
+kubectl set iamge deployment hello-world hello-world=hello-app:2.0 --record
+
+# alternative method to update a deployment object
+kubectl edit deployment hello-world
+
+# opt 4 
+kubectl apply -f hello-world-deployment.yaml --record 
+
+######
+# Checking Deployment Status
+kubectl rollout status deployment <name>
+kubectl describe deployment <name>
+  
+  Deployment Status:
+  "Complete" - all update work is finished
+  "Progressing" - update in flight
+  "Failed" -update could not complete 
+ 
+
+####################################################################
+# Updating Strategy
+####################################################################
+
+apiVersion: apps/v1
+kind: Deployment
+...
+spec:
+  replicas:20
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxunavailable: 20%    # both percentage and number work
+      maxSurge: 5            # both percentage and number work   
+  ...
+  template:
+  ...
+    spec:
+      containers:
+      ...
+        readinessProbe:      # readnessProbe difinition
+          httpGet:
+            path: /index.hmlt
+            port: 8080
+          initialDelaySeconds: 10
+          preoidSeconds: 10
+
+
+
+#############################################
+# Rolling back a deployment
+#############################################
+kubectl rollout history deployment ct-deploy  # check history
+kubectl rollout history deployment ct-deploy --revision=1 
+kubectl rollout undo deployment ct-deploy     
+kubectl rollout undo deployment ct-deploy --to-revision=1  #roll back to revision
+
+kubectl rollout status deployement <deployment name>
+kubectl rollout pause deployment <deployment name>
+"Demo: using UpdateStrategy and ReadnessProbe to controll rollout"
+
+#############################################
+# DaemonSet example
+#############################################
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hello-world-dqs
+spec:
+  selector:
+    matchLabels:
+      app: hello-world-app
+  tempalte:
+    metadata:
+      labels:
+        app: hello-world-app
+    spec:
+      nodeSelector:
+        node: hello-world-ns 
+      containers:
+        - name: hello-world
+          image: docker.west.isilon.com/verticals/nginx/nginx:1.19.0
+
+#############################################
+# job
+#############################################
+
+# single job
+apiVersion: batch/v1
+kind: Job 
+metadata:
+  name: ct-job
+spec:
+  template:
+    spec: 
+      containers:
+      - name: ubuntu
+        image: ubuntu
+        command:
+        - "/bin/bash"
+        - "-c"
+        - "/bin/echo Hello from Pod $(hostname) at $(date)"
+      restartPolicy: Never
+
+# parallel jobs:
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ct-job
+  namespace: ct-group
+spec:
+  completions: 50     # total 50 
+  parallelism: 10     # 10 jobs in same time 
+  template:
+    spec: 
+      containers:
+      - name: alpine
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+        command:
+        - "/bin/sh"
+        - "-c"
+        - "/bin/echo Hello rom Pod $(hostname) at $(date)"
+      restartPolicy: Never
+
+#backoffLimit example
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ct-job
+  namespace: ct-group
+spec:
+  backoffLimit: 2 #at most 2 more pods to be created to finish the job 
+                  # total 3 job can be seen by kubectl get pods
+  template:
+    spec: 
+      containers:
+      - name: alpine
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+        command:
+        - "/bin/sh"
+        - "-c"
+        - "/bin/ech Hello rom Pod $(hostname) at $(date)"
+      restartPolicy: Never
+
+#CronJob example  batch/v1beta
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: ct-cronjob
+  namespace: ct-group
+spec:
+#  completions: 27
+#  parallelism: 9 
+  schedule: "*/1 * * * *"
+#  template:
+  jobTemplate:
+    spec: 
+      template:
+        spec:
+          containers:
+          - name: alpine
+            image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+            command:
+            - "/bin/sh"
+            - "-c"
+            - "/bin/echo Hello rom Pod $(hostname) at $(date) && /bin/sleep 10 && /bin/echo after sleep 10 seconds:$(date)"
+          restartPolicy: Never
+
+kubectl get cronjob/ct-cronjob -o yaml # for detailed configurations
+
+
+
+
+
+

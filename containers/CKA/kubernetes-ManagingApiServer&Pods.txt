@@ -1,0 +1,396 @@
+#Get info about current context
+kubectl config get-contexts  # list context with asterisk (*) 
+
+#Change context
+kubectl config use-context xxx-context
+
+#Switch context
+kubectl config set-contexts kubernetes-admin@kubernetes
+
+#Switch namespace
+kubectl config set-context --current --namespace=<namespace>
+
+######
+#help info:  
+kubectl help config
+
+#Switch cluster
+kubectl config set-cluster ..
+
+#Get API Server info for current context
+kubectl cluster-info
+
+#Get a list of API Resources available in the cluster
+kubectl api-resources 
+
+#Explain pods
+kubectl explain pods | less
+kubectl explain pods.sepc | less
+kubectl explain pods.sepc.containers | less
+
+#Show supported API versions on API Server 
+kubectl api-versions
+
+#Watch and put it to background to monitor resources' changes
+kubectl get pods --watch -v 6 &
+
+#Accessing logs
+kubectl logs hello-world
+kubectl logs hello-world -v 6
+
+######################################
+#Creating Namespaces
+#   and creating Objects in Namespaces
+######################################
+
+###################
+# declarative way
+###################
+apiVersion: v1  
+kind: Namespace
+metadata:
+    name: playgroundinyaml
+---
+apiVersion: apps/v1          ## create objects in Namespace
+kind: Deployment
+metadata:
+  name: mydeploy
+  namespace: playgroundinyaml
+  labels:
+    app: hello-world
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: hello-world
+    template:
+      metadata:
+        labels:
+        ...
+
+
+####################
+# imperatively
+####################
+kubectl create namespace palyground1  #to create namespace palyground1
+kubectl run nginx --image=nginx --namespace=playground1
+
+
+####################
+# related operations
+####################
+
+### list resources that can (not) be namespaced
+kubectl api-resource --namespaced=true
+kubectl api-resource --namespaced=false
+
+
+#describe namespaces' state
+kubectl describe namespaces
+kubectl describe namespaces kube-public
+
+
+
+######################################
+# Adding and editing LABELS
+######################################
+
+########
+# delcarative way
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    app: v1             #app  - can be used as selector in query in future
+    tier: PROD          #tier - too
+spec: 
+
+########
+# cmd line
+
+#Adding
+kubectl label pod nginx tier=PROD app=v1
+
+#Editing
+kubectl label pod nginx tier=DEBUG app=v1 --overwrite
+
+#Remvoing 
+kubectl label pod nginx app-   #remvoing label `app` here
+
+#########
+# use labels
+
+####
+# Show (list all the labels)
+####
+kubectl get pods --show-labels
+
+####
+# query
+####
+kubectl get pods -l <label>=<value>
+kubectl get pods -l component=etcd
+   or 
+kubectl get pods -l 'component in (etcd, scheduler)'
+kubectl get pods -l 'component notin (etcd, scheduler)'
+   or 
+kubectl get pods -L tier,app  # to show the given labels 
+
+### to any resrouces
+kubectl get <resource> -l 'component in (etcd, scheduler)'
+
+
+####################
+# example 1
+####################
+
+#deployment -> pods <- service
+
+kind: Deployment
+...
+spec:
+  selector:
+    matchLabels:
+      run: hello-world        #pods with same labels that can match with the deployment 
+...
+  template:
+    metadata:
+      labels 
+        run: hello-world     # these Pods that are created with this template will satisfy 
+                             # the selector and be part of this deployment 
+    spec:
+      containers:
+      ...
+
+
+kind: service
+...
+spec:
+  selector:
+    run: hello-logthLabels.yaml
+
+
+
+###################
+# example: labels practice
+###################
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod-1
+  namespace: ct-group
+  labels:
+    apps: MyWebApp
+    deployment: v1
+    tier: prod 
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+---    
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod-2
+  namespace: ct-group
+  labels:
+    apps: MyWebApp
+    deployment: v1.1
+    tier: prod
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+---   
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod-3
+  namespace: ct-group
+  labels:
+    apps: MyWebApp
+    deployment: v1.1
+    tier: qa
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+￼---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod-4
+  namespace: ct-group
+  labels:
+    apps: MyAdminApp
+    deployment: v1
+    tier: prod
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+
+######################################################
+### Create your own secret for private docker Server
+kubectl create secret docker-registry dockerisilon --docker-server=docker.west.isilon.com --docker-username='hyin' --docker-password='Iamnosta149st9'
+kubectl create secret 
+    docker-registry dockerisilon 
+    --docker-server=docker.west.isilon.com 
+    --docker-username='hyin' 
+    --docker-password='Iamnosta149st9'
+
+
+###############
+# example: deployment-label
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+#  namespace: ct-group
+  labels: 
+    app: hello-world
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: hello-world
+  template:
+    metadata:
+      labels:
+        app: hello-world
+      namespace: ct-group
+    spec:
+      containers:
+      - name: hello-world
+#        image: gcr.io/google-samples/hello-app:1.0
+        image: docker.west.isilon.com/verticals/nginx/nginx:1.19.0
+        ports:
+        - containerPort: 8080
+
+########################
+# example: service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-world
+spec: 
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector: 
+    app: hello-world
+
+########################
+# exapmle: PodsToNodes.yaml  <not done>
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod-ssd
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+  nodeSelector:
+    disk: local_ssd
+---
+apiVersion: v1
+kind: Pod
+<To be continue...>
+
+
+######################################################
+# working with pods
+
+# get console from container in pod
+kubectl exec -it <pod name> [--container <container id>] -n <namespace>-- /bin/bash    # if there're multiple containers in pod
+kubectl exec -it <pod name> -- /bin/bash  # single container pod
+
+# get log from the target container in pod
+kubectl logs <pod name> [--container <container id>] -n <namesapce>
+
+# port-forward
+kubectl port-forward pod <pod name> LOCALPORT:CONTAINERPORT  #???
+
+#######################
+# montioring events
+kubectl get events --watch &   # during demo or other operations
+
+#######################
+# Scale a Deployment to x replicas;  up/down depends on x vs. current pods amount
+kubectl scale deployment <deployment name> [-n <namespace>] --replicas=x
+
+#########
+# multi-container pods
+apiVersion: v1
+kind: Pod
+metadata:
+  name: multicontainer-pod
+spec:
+  containers:
+  - name: nginx:
+    image: nginx
+    ports:
+    - containerPort: 80
+...
+  - name: alpine
+    image: apline 
+    ....
+---
+apiVersion: v1
+kind: Pod
+metadta:
+  name: onfailure-pod
+spec:
+  containers:
+  - name: nginx:
+    image: nginx
+    ports:
+    - containerPort: 80
+  restartPolicy: OnFailure  # define on pod level but not container level
+
+# multi-container in same Pod will share the same volume mount 
+# it's for tight couple apps usually:  producer-consumer together or special purposes
+
+
+#################
+# change the `grace-period` during pods deletion
+kubectl delete pod --grace-period=<seconds>
+
+# some time if the previous pods not delete on time and caused resoruce can't be re-assign 
+# to new pod, you may need force delete:
+kubectl delete pod --grace-period=0 --force
+
+#################
+# Pod health  - can be used for rollout contorl see "development&replicaset"
+
+...
+spec:
+  containers:
+    ...
+    livenessProbe:
+      tcpSocket:
+        port: 8080
+      initalDelaySeconds: 15
+      periodSeconds: 20
+      
+...
+    readinessProbe:
+      tcpSocket:
+        port: 8080
+      initalDelaySeconds:      
+
+kubectl explain pod.spec.containers.livenessProbe
+kubectl explain pod.spec.containers.readnessProbe

@@ -1,0 +1,139 @@
+multiple user.txt
+
+########################################
+ I - Generate user certificate
+########################################
+@ client computer:
+
+## 1.  generate private key for user
+openssl genrsa -out hyin.key 2048
+
+## 2. generate certificate request  crs
+openssl req -new -key hyin.key -out hyin.csr \
+        -subj "/CN=hyin/O=vert-eda"      #/O namespace 
+
+## 3. use CA crt and key to sign hyin's cert
+openssl x509 -req -in hyin.csr -CA CA/ca.crt -CAkey CA/ca.key \
+        -CAcreateserial -out hyin.crt -days 360
+
+
+    ##########################################
+    #script for fast generate user cert:
+    ##########################################
+    #!/usr/bin/env bash
+    # $1 - username
+    # $2 - namespace
+    # $3 - k8s CA directory - using for sign the user cert
+    rm -rf ./tmp
+    mkdir ./tmp && cd ./tmp
+    openssl genrsa -out $1.key 2048
+    openssl req -new -key $1.key -out $1.csr \
+            -subj "/CN=$1/O=$2"  
+    openssl x509 -req -in $1.csr -CA $3/ca.crt -CAkey $3/ca.key \
+            -CAcreateserial -out $1.crt -days 365
+
+########################################
+II - Create kubeconfig for user
+   a. set-cluster
+   b. set-credentials
+   c. set-context
+########################################
+## 4. Create kubeconfig for user hyin, so hyin can visit the kubernetes cluster 
+
+# 4.1 - this can be done by hyin by sending the crt to hyin
+# 4.2 - by modifying current ~/.kube/config and sending to hyin
+
+# 4.1 - done by hyin: need ca.crt, hyin.crt, hyin.key
+kubectl --kubeconfig hyin.kubeconfig config set-cluster ?kubernetes?  \
+        --server https://xx.xx.xx.xx:6443 \
+        --certificate-authority=hyin.crt
+
+...
+
+## Add the user cert into the config file: hyin.kubeconfig
+
+kubectl --kubeconfig hyin.kubeconfig config set-credentials hyin \
+        --client-certificate  /home/hyin/xxx/hyin.crt \
+        --client-key /home/hyin/xxx/hyin.key
+
+## Set the context:
+
+kubectl --kubeconfig hyin.kubeconfig set-context context-hyin \
+        --cluster ?kubernetes? \
+        --namespace vert-eda  \
+        --user hyin
+
+
+########################################
+III - send config to user
+########################################
+# 4.2 - by modifying current ~/.kube/config and send it to user-hyin
+in current user env say admin:
+a. cp ~/.kube/config ./tmp/
+b. vi ./tmp/config        
+          `cat user.crt | base64 -w0` to get the pastable crt
+          `cat user.key | base64 -w0` to get user's private key
+c. change cluster / user / context
+d: copy to hyin
+e: save as $HOST/home/hyin/.kube/config
+
+
+## 5. define role (give permissions to user)
+
+# for help
+kube create role -help 
+
+kubectl create role role-hyin --verb=get,list --resource=pods --namespace vert-eda
+
+# for check the configuration in yaml format
+kubectl -n vert-eda get role role-hyin -o yaml
+
+
+## 6. Create rolebinding 
+
+kubectl create rolebinding rolebinding-hyin \
+        --role=role-hyin  \
+        --user=hyin \
+        --namespace vert-eda
+
+#using namespace as group for group policy here
+kubectl create rolebinding rolebinding-hyin \
+        --role=role-hyin  \
+        --user=vert-eda \
+        --namespace vert-eda
+
+# checking the 
+kubectl -n vert-eda get rolebinding rolebinding-hyin -o yaml
+
+
+
+###  Group the accesses for multiple users ###
+
+## 0. more users need to visit same resources
+## 1. generate key/crt for new users
+## 2. 
+
+
+kubectl create rolebinding rolebinding-yourgroup \
+        --role=role-hyin  \
+        --group=group-vert-eda \
+        --namespace vert-eda
+
+kubectl -n vert-eda get rolebinding rolebindig-yourgroup -o yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding 
+metaqdata:
+  creationTimestamp: ....
+  name: rolebinding-yourgroup
+  namespace: vert-eda
+  resourceVersion: "..."
+  selfLink: /apis/rbac.authroization.k8s.io/v1/namespaces/vert-eda/rolebindings/rolebinding-yourgroup
+  uid: ...
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: role-hyin
+subjects:
+- apiGroup: rbac.authroization.k8s.io
+  kind: Group
+  name: group-vert-eda

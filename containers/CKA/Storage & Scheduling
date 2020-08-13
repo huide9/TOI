@@ -1,0 +1,654 @@
+
+###########
+# ToC
+###########
+
+Storage & Scheduling
+  PV
+  PVC
+  working case
+Defining a StorageClass
+
+ENV varaibles, Secrets and ConfigMap 
+  Env Variables
+  Secrets
+  ConfigMap
+
+Kubernetes Scheduler
+  resource request
+  real case: 1 - affinity
+  real case: 2 - AntiAffinity
+
+
+
+
+###############################
+Storage & Scheduling
+###############################
+
+
+###########################
+#### Persistent Volume ####
+###########################
+
+### defining a Persistent Volume ####
+
+type
+capacity
+accessModes              (RWO, RWX, ROX)
+persistentVolumeReclaimPolicy  (delete (default), retain )
+Labels
+
+
+
+### example of define a persistent Volume ###
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-nfs-data
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: 172.16.94.5
+    path: "/export/volume/pod"
+  
+#################################
+#### Persistent Volume Claim ####
+#################################
+
+### Defining a Persistent Volume Claim ####
+accessModes
+resources
+storageClassName
+selector  
+
+### example of define a persistent Volume Claim ###
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-nfs-data
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+   requests:
+      storage: 10Gi
+
+### using Persistent Volume in pods ###
+...
+spec:
+  volumes:
+    - name: webcontent
+      PersistentVolumeClaim: 
+        claimName: pvc-nfs-data
+  containers:
+  - name: nginx
+    ...
+    volumeMounts:
+    - name: webcontent
+      mountPath: "/usr/share/nginx/html/web-app"
+
+
+#######################################
+#  working case:
+
+## deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ct-deploy
+  namespace: ct-group
+  labels:
+    app: lapp-ct-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lapp-ct-pod
+  template:
+    metadata:
+      name: ct-pod
+      labels:
+        app: lapp-ct-pod
+      namespace: ct-group
+    spec:
+      volumes:
+      - name: db
+        persistentVolumeClaim:
+          claimName: pvc-nfs-data
+      containers:
+      - name: ct-container
+#        image: docker.west.isilon.com/verticals/nginx/nginx:1.19.0
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+#        ports:
+#        - containerPort: 8080 
+        volumeMounts:
+        - name: db
+          mountPath: "/mnt"
+
+## pvc
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-nfs-data
+  namespace: ct-group
+spec:
+  selector:
+    matchLabels:
+      tag: ct-group-db
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 80Gi
+
+## pv
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-nfs-data
+  namespace: ct-group
+  labels:
+    tag: ct-group-db
+spec:
+  capacity:
+    storage: 80Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    server: qalogserver
+    path: "/ifs/qa/log/TESTDATA.containers/PV/TMP"
+
+#################################
+#### Defining a StorageClass ####
+#################################
+
+###template
+## StorageClass
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: managed-premium
+parameters:
+  kind: managed
+  storageaccounttype: Premium_LRS
+provisioner: kubernetes.io/azure-disk
+
+## PVC for Dyanmic provisioning
+apiVersion: v1
+kind: persistentVolumeClaim
+metadata:
+  name: pvc-azure-managed
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: managed-premium
+  resources:
+    requests:
+      storage: 80Gi  
+
+
+########################################################
+# ENV varaibles, Secrets and ConfigMap 
+########################################################
+
+#######################
+#### Env Variables ####
+#######################
+
+### User defined ###
+
+* Where: Pod Spec for each container
+* Defined inside the container image
+* How: Defined in name/value or valueFrom
+
+### System defined ###
+* When: Name of all Services available at the time the Pod was created
+* Where/When: defined at container startup/ cannot be updated once the pod is created
+
+### example: ###
+
+spec:
+  containers:
+  - name: hello
+    image: gcr.io/google-samples/hello-app.1.0
+    env:
+    - name: DATABASE_SERVERNAME
+      value: "sql.example.local"
+    - name: BACKEND_SERVERNAME
+      value: "be.example.local"
+
+####################
+####   Secrets  ####      
+####################
+* Store sensitive info
+* Retrieve for later User
+* Password, tokens, keys and certificates
+* Safer and more flexible configurations
+
+** base64 encoded
+** Encryption canbe configured
+** Stored in etcd
+** Nameced: can only be referenced by Pods in the same namespace
+** Unavailable Secrets will preent a Pod from starting upd
+
+
+### example:
+
+# create secret
+kubectl create secret generic app1 \
+    --from-literal=USERNAME=app1login \
+    --from-literal=PASSWORD='S0methingS@Str0ng!'
+
+# query the secret
+kubectl get secret app1 --template={{.data.USERNAME}} | base64 --decode
+kubectl get secret app1 --template={{.data.PASSWORD}} | base64 --decode
+
+### Using Secrets in Pods
+* Environment Variables
+* Volumes or Files
+* Referenced Secret must be created and accessible form the Pod to start up
+
+## Usage - Introduction: 
+# in Environment Variables
+spec:
+ containers:
+ - name: hello-world
+   ...
+   env:
+   - name: app1username
+     valueFrom:
+       secretKeyRef:
+         name: app1
+         key: USERNAME
+  - name: app1password
+    valueFrom:
+      secretKeyRef:
+        name: app1
+        key: PASSWORD
+
+or
+spec:
+  containers:
+  - name: hellp-world
+  ...
+  envFrom:
+  - secretRef:
+    name: app1
+
+# Using Secrets as Files
+spec:
+  volumes:
+    - name: appconfig
+      secret:
+        secretname: app1
+  containers:
+    ...
+    volumeMounts:
+      - name: appconfig
+        mountPath: "/etc/appconfig"    # /etc/appconfig/USERNAME  
+                                       # /etc/appconfig/PASSWORD  
+
+## Using Secret in Pods - example
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ct-secret-env
+  namespace: ct-group
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ct-secret-env-pod-label
+  template:
+    metadata:
+      name: ct-secret-env-pod
+      labels:
+        app: ct-secret-env-pod-label
+    spec:
+      containers:
+      - name: ct-secret-env-container
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+        env:
+        - name: app1username
+          valueFrom:
+            secretKeyRef:
+              name: app1
+              key: USERNAME
+        - name: app1password
+          valueFrom:
+            secretKeyRef:
+              name: app1
+              key: PASSWORD
+
+       ...  or ...
+
+to uses secret to pull image from private registry
+
+    spec:
+      containers:
+      - name: ct-secret-env-container
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+      imagePullSecrets:
+      - name: private-reg-credential
+
+####################
+#### ConfigMaps ####
+####################
+* key value pairs exposed into Pods
+* Define app/env settings
+* Decouple app / pod configurations
+* Maximizing container image portability
+* Env virables or files
+
+keywords:  valueFrom    envFrom
+
+* Volumes and Files
+  ** insider container
+  ** singel file/dir
+  ** multi files / dirs
+  ** Volume ConfigMap can be updated
+
+### config method ### 
+## command line ##
+kubectl create configmap appconfigprod \ 
+    --from-literal=DATABASE_SERVERNAME=sql.example.local \
+    --from-literal=BACKEND_SERVERNAME=be.example.local  
+  or
+kubectl create configmap appconfigprod \ 
+    --from-file=appconfigqa
+
+$ cat appconfigqa
+DATABASE_SERVERNAME="sql.example.local"
+BACKEND_SERVERNAME="be.example.local"
+
+
+### config key
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appconfigprod
+data:
+  BACKEND_SERVERNAME: be.example.local
+  DATABASE_SERVERNAME: sql.example.local 
+
+### Using ConfigMap in ENV Variabels ###
+spec: 
+  containers:
+  - name: hello-world
+    ...
+  env:
+  - name: DATABASE_SERVERNAME
+    valueFrom:
+      configMapKeyRef:
+        name: appconfigprod
+        key: DATABASE_SERVERNAME
+  - name: BACKEND_SERVERNAME
+    valueFrom:
+      configMapKeyRef:
+        name: appconfigprod
+        key: BACKEND_SERVERNAME
+
+### Using ConfigMaps as Files ###        
+spec: 
+  volumes:
+  - name: appconfig
+    configMap:
+      name: appconfigqa
+      ...
+  containers:
+  - name: hello-world
+    mountPath: "/etc/appconfig"
+
+
+### case:  using in pods ###
+
+## env mode ##
+
+...
+    spec:
+      containers:
+      - name: ct-configmap-container
+        image: docker.west.isilon.com/verticals/alpine/alpoine:3.12.0
+        envFrom:
+          - configMapRef:
+            name: appconfigprod
+
+## file mode ##
+
+...
+    spec:
+      volumes:
+      - name: appconfig
+        configMap:
+          name: appconfigqa
+      containers:
+      - name: ct-configmap-container
+        image: docker.west.isilon.com/verticals/alpine/alpoine:3.12.0
+        ...
+        volumeMounts:
+          mountPath: "/etc/appconfig"
+
+### Update ConfigMap ###
+kubectl edit configmap appconfigqa
+
+
+########################################################
+# Kubernetes Scheduler
+########################################################
+
+#####################
+# resource request
+#####################
+
+### resource type ###
+cpu / mem
+### example: 
+...
+    spec:
+      containers:
+      - name: ct-container
+        image: docker.west.isilon.com/verticals/...
+        resources:
+          requests:
+            cpu: "1"
+          ...
+
+#### some opeartion types ###
+* Node Selector
+* Affinity
+* Taint and Tolerantions
+  - Taint:
+      ability to contorl which Pods are scheduled to Nodes
+      `kubectl tain node t1-node key=MyTaint:NoSchedule`
+      `kubectl help taint` for add/remove/update tainted node
+  - Tolerations:
+      allows a Pods to ignore a Taint and be scheduled as normal on Tainted Nodes
+* Node Cordoning
+      'kubectl cordon t1-node3`  
+      `kubectl drain t1-node3 --ignore-daemonsets`  #drain nodes even ther's pods running
+      `kubectl uncordon t1-node3`
+* Manual Scheduling
+
+### their configuration directives ###
+* nodeSelector -- assign pods to nodes using Labels ("matchLabels") and Selectors
+    often used to map Pods to Nodes based on:
+      - special HW 
+      - workload isolation
+* nodeAffinity -- uses Labels on Nodes to make a scheduling decision with 
+                  "matchExpressions"
+    - requiredDuringSchedulingIgnoredDuringExecution
+      "the pod has to has an existing pod already scheduled on cluster satisfy
+       labelSelector definition"
+    - preferredDuringSchedulingIgnoredDuringExecution
+* podAffinity -- schedule Pods onto the same Node, Zone as some other Pod
+* PodAntiAffinity -- schedule Pods onto the different Node, Zone as some other Pod    
+* 
+
+## example: podAffinity
+...
+    spec:
+      containers:
+      - name: hello
+      ...
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - hello-world-web
+            topologyKey: "kubernetes.io/hostname"
+
+## example: tolerations
+...
+    spec:
+      containers:
+      - name: hello
+        image: ...
+      tolerations:
+      - key: "key"
+        operator: "Equal"
+        value: "MyTaint"
+        effect: "NoSchedule"
+
+###############################
+# real case: 1 - affinity
+###############################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ct-affinity-web
+  namespace: ct-group
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ct-affinity-web-label
+  template:
+    metadata:
+      name: ct-affinity-web-pod
+      labels:
+        app: ct-affinity-web-label
+    spec:
+      containers:
+      - name: ct-affinity-web-container
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ct-affinity-cache
+  namespace: ct-group
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ct-affinity-cache-label
+  template:
+    metadata:
+      name: ct-affinity-cache-pod
+      labels:
+        app: ct-affinity-cache-label
+    spec:
+      containers:
+      - name: ct-affinity-cache-container
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - ct-affinity-web-label
+            topologyKey: "kubernetes.io/hostname"
+
+###############################
+# real case: 2 - AntiAffinity
+###############################
+
+# antiAffinity - use to assign pods on different nodes when replias >1
+                 for strictly limit at most 1 pod/node
+                 To violet this:
+
+                  podAntiAffinity:
+                    preferredDuringSchedulingIgnoredDuringExecution:
+                    - weight: 100
+                      podAffinityTerm:
+                        labelSelector:
+                          matchExpressions:
+                          - key: app
+                            operator: In
+                            values: ct-affinity-web-label
+                        topologyKey: "kubernetes.io/hostname" 
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ct-affinity-web
+  namespace: ct-group
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ct-affinity-web-label
+  template:
+    metadata:
+      name: ct-affinity-web-pod
+      labels:
+        app: ct-affinity-web-label
+    spec:
+      containers:
+      - name: ct-affinity-web-container
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+      affinity:
+        PodAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution
+          - labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              value:
+              - ct-affinity-web-label
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ct-affinity-cache
+  namespace: ct-group
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ct-affinity-cache-label
+  template:
+    metadata:
+      name: ct-affinity-cache-pod
+      labels:
+        app: ct-affinity-cache-label
+    spec:
+      containers:
+      - name: ct-affinity-cache-container
+        image: docker.west.isilon.com/verticals/alpine/alpine:3.12.0
+      affinity:affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - ct-affinity-web-label
+                operator: In
+                values:
+                - ct-affinity-web-label
+            topologyKey: "kubernetes.io/hostname"

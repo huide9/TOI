@@ -1,0 +1,22 @@
+
+####################################
+#      operating resources         #
+####################################
+
+kubectl patch pod <pod> -p '{"metadata":{"finalizers":null}}'
+
+
+## Delete PV that "terminating" forever
+kubectl get pv | tail -n+2 | awk '{print $1}' | xargs -I{} kubectl patch pv {} -p '{"metadata":{"finalizers": null}}'
+
+
+
+
+## catch logs form tons for job/pods i.e., rendersim 
+
+new
+xset=`kubectl get pods | tail -n +2  | awk '{print $1}' `;  \
+for x in $xset;       \
+do                    \
+  kubectl logs $x  --tail=64;  \
+done         

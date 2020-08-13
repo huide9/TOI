@@ -1,0 +1,124 @@
+##############################################
+# Networking Fundamentals
+##############################################
+
+#### #### 
+
+
+#### #### 
+
+
+#### Cluster DNS #### 
+
+- DNS is availabel as a Service in a Cluster
+
+
+
+##############################################
+# Application access with Services
+##############################################
+
+#### #### 
+
+
+
+
+
+
+
+
+
+##############################################
+# Ingress 
+##############################################
+
+
+#### Architecture ####   
+
+
+### Ingress Object & Ingress Controller
+
+- Ingress Controller
+  -- Pods in a cluster -nginx
+  -- Hardware external to the cluster -- Citrix and F5
+  -- Cloud controlle
+
+- HTTP based application
+- Load Balancing to Endpoints
+- layer 7
+  - Name-based virtual hosts
+  - Path-based routing 
+  - Higher level capabilies
+    - URL rewriting
+    - session persistency
+    - dynamic waiting
+- Single resource
+  - provide access to multiple internal services
+  - Reqeuest to pods rather than kube-proxy (reduce route cost)
+- TLS/SSL termination
+
+-- IP layer load balancer still need the traditional LoadBalancer equipment
+
+rs -- AppGW, Google Load Balancer and AWS ALB Ingress
+
+
+
+## Exposing a Single service with Ingress
+
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-single
+spec:
+  backend:
+    serviceName: ct-service-ingress-single
+    servicePort: 80
+
+## Exposing Multiple Services with Ingress
+
+sepc:
+  rule:
+    - hosts: path.example.com
+      http: 
+        paths:
+          - path: /red
+            backend:
+              serviceName: ct-service-ingress-red
+              servicePort: 4242
+          -path: /bule
+            backend:
+              service: ct-service-ingress-blue
+              servicePort: 4343
+  backend:      ## if URL not fall in /red or /blue
+    serviceName: ct-service-default
+    servicePort: 80
+
+## Name Based Virtual Hosts with Intress
+spec:
+  rules:
+    - host: red.example.com
+      http:
+        paths:
+        - backend:
+            servicename: ct-service-ingress-red
+            servicePort: 4242
+    - host: blue.example.com
+      http:
+        paths:
+        - backend:
+            servicename: ct-service-ingress-blue
+            servicePort: 4343
+
+## Using TLS certificates for HTTPS Ingress
+spec:
+  tls:
+  - hosts:
+    - tls.example.com
+    secretname: tls-secret # that contains your certificate and its private key
+  rules:
+  - hosts: tls.example.com
+    http:
+      paths:
+        backend:
+          servicename: ct-service-ingress-single
+          sericePort:  80            

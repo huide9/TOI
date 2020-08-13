@@ -1,0 +1,42 @@
+Join existed cluster:
+
+https://computingforgeeks.com/join-new-kubernetes-worker-node-to-existing-cluster/
+
+
+#### list token
+$ kubeadm token list
+
+if token expired, generate a new one
+
+$ sudo kubeadm token create
+or 
+$ kubeadm token create --print-join-command
+
+# Get Discovery Token CA cert hash
+$ openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
+
+
+
+#
+sudo kubeadm join 10.137.20.99:6443 --token m98h4z.hz34vkrsna9cdhtj --discovery-token-ca-cert-hash sha256:b2a7613ae1eeb038ac0c9ea9f4bac76c0bb81d2928f55020da007be5476320a3
+
+
+
+# checking port info:
+$ sudo netstat -nlpt|grep :10250 
+
+###############################################
+Step 5: Removing a Worker Node from the Cluster
+###############################################
+To remove a Kubernetes worker node from the cluster, perform the following operations.
+
+# Migrate pods from the node:
+$ kubectl drain  <node-name> --delete-local-data --ignore-daemonsets
+
+# Prevent a node from scheduling new pods use – Mark node as unschedulable
+$ kubectl cordon <node-name>
+
+# Revert changes made to the node by ‘kubeadm join‘ – Run on worker node to be removed
+$ sudo kubeadm reset
+
+# You can then redo the same process of joining a new node to the cluster once the kubeadm reset command has been executed successfully.

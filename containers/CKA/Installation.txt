@@ -1,0 +1,32 @@
+
+
+# disable linux swap
+sudo swapoff -a
+
+# vi fstab to double confirm after reboot
+
+
+# adding repository
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+# for ubuntu 16.04
+sudo bash -c 'cat  <<EOF  >/etc/apt/sources.list.d/kubernetes.list
+deb https://apt.kubernetes.io/ kubernetes-xenial main
+EOF'
+
+
+sudo apt-get update
+
+apt-cache policy kubelet | head -n 20   # show k8s version info
+apt-cache plicy docker.io | head -n 20  # show docker version info         
+
+# hold ubuntu package not allow auto upgrade
+sudo apt-mark hold docker.io kubelet kubeadm kubectl
+
+# check the status 
+sudo systemctl status kubelet.service
+sudo systemctl status docer.service
+
+# to manually enable service as default system service
+sudo systemctl enable xxx.service
+
